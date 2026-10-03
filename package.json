@@ -1,0 +1,21 @@
+{
+  "name": "crime-tracking-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prestart": "npm install",
+    "start": "concurrently \"python -m uvicorn backend.main:app --reload --port 8000\" \"http-server frontend -p 3000 -c-1\"",
+    "start:win": "powershell -NoProfile -ExecutionPolicy Bypass -File start.ps1",
+    "backend": "python -m uvicorn backend.main:app --reload --port 8000",
+    "frontend": "http-server frontend -p 3000 -c-1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "mysql2": "^3.15.3"
+  }
+}

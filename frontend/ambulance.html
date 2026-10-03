@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>City 360 — Ambulance Driver Emergency Dispatch Portal</title>
+
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+  <!-- Leaflet + Leaflet Routing Machine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@1.3.1/dist/leaflet-routing-machine.css"/>
+
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-dark: #1e293b;
+      --border-dark: #334155;
+      --accent-red: #ef4444;
+      --accent-emerald: #10b981;
+      --accent-blue: #3b82f6;
+      --text-white: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-white);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #7f1d1d, #b91c1c, #dc2626);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 42px; height: 42px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+
+    .title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px; font-weight: 800;
+      color: #ffffff;
+    }
+
+    .subtitle { font-size: 12px; color: #fca5a5; font-weight: 500; }
+
+    .status-badge {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+      color: #6ee7b7;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .pulse-dot {
+      width: 8px; height: 8px; background: #10b981; border-radius: 50%;
+      box-shadow: 0 0 10px #10b981; animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse { 0%{opacity:0.4} 50%{opacity:1} 100%{opacity:0.4} }
+
+    .route-banner {
+      background: linear-gradient(90deg, #065f46, #047857);
+      color: white;
+      padding: 10px 20px;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #10b981;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .app-container {
+      display: flex; flex: 1; height: calc(100vh - 100px);
+    }
+
+    .left-panel {
+      width: 420px; background: var(--card-dark);
+      border-right: 1px solid var(--border-dark);
+      display: flex; flex-direction: column; overflow-y: auto;
+      padding: 16px; gap: 16px;
+    }
+
+    .panel-section-title {
+      font-size: 13px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--accent-red);
+      display: flex; align-items: center; gap: 8px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border-dark);
+    }
+
+    .dispatch-card {
+      background: #0f172a;
+      border: 2px solid var(--accent-red);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 12px;
+      box-shadow: 0 8px 24px rgba(239, 68, 68, 0.2);
+    }
+
+    .patient-name { font-size: 16px; font-weight: 800; color: #ffffff; }
+    .patient-detail { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+
+    .btn {
+      padding: 10px; border-radius: 8px; border: none; font-weight: 700; font-size: 13px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      text-decoration: none; transition: all 0.2s ease;
+    }
+
+    .btn-accept {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+    .btn-accept:hover { transform: translateY(-2px); }
+
+    .btn-call {
+      background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6;
+    }
+
+    .right-map { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    .empty-state {
+      padding: 30px 16px; text-align: center; color: var(--text-muted); font-size: 13px;
+      background: #0f172a; border-radius: 12px; border: 1px dashed var(--border-dark);
+    }
+
+    .leaflet-routing-container {
+      background: #1e293b !important;
+      color: white !important;
+      border-radius: 12px !important;
+      border: 1px solid #334155 !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+    }
+    .leaflet-routing-alt h2 { color: #10b981 !important; font-size: 14px !important; }
+    .leaflet-routing-alt h3 { color: #93c5fd !important; font-size: 13px !important; }
+  </style>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@1.3.1/dist/leaflet-routing-machine.js"></script>
+</head>
+<body>
+
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">🚑</div>
+      <div>
+        <div class="title">Ambulance Driver Dispatch Portal</div>
+        <div class="subtitle">Davangere Emergency Medical Response Console (Synced with Police HQ)</div>
+      </div>
+    </div>
+
+    <div class="status-badge">
+      <span class="pulse-dot"></span>
+      <span>Unit A-201 (108 Central) — ONLINE</span>
+    </div>
+  </header>
+
+  <!-- Route Info Banner -->
+  <div id="routeBanner" class="route-banner" style="display:none;">
+    <div>
+      <i class="fa-solid fa-bolt" style="color:#fde047;margin-right:6px"></i>
+      <span id="routeBannerText">SMS Notification Link Activated — Calculating Shortest Low-Traffic Route...</span>
+    </div>
+    <div style="background:rgba(255,255,255,0.2);padding:4px 10px;border-radius:6px;font-size:11px">
+      OSRM Fast Route Engine
+    </div>
+  </div>
+
+  <div class="app-container">
+    <aside class="left-panel">
+      <div class="panel-section-title">
+        <i class="fa-solid fa-bell-concierge"></i> Live Synced Emergency SOS
+      </div>
+
+      <div id="dispatchList">
+        <div class="empty-state">
+          <i class="fa-solid fa-satellite-dish" style="font-size:24px;margin-bottom:8px;color:#3b82f6"></i><br/>
+          Listening for live emergency broadcasts from citizens in Davangere...
+        </div>
+      </div>
+
+      <!-- Synced Police Patrols Section -->
+      <div class="panel-section-title" style="color:#3b82f6;margin-top:12px;">
+        <i class="fa-solid fa-shield-halved"></i> Synced Police Patrol Units
+      </div>
+
+      <div id="policeSyncList" style="display:flex;flex-direction:column;gap:10px;">
+        <!-- Dynamically rendered live police units -->
+      </div>
+    </aside>
+
+    <main class="right-map">
+      <div id="map"></div>
+    </main>
+  </div>
+
+  <script>
+    const DRIVER_LAT = 14.4655, DRIVER_LNG = 75.9175;
+    let map, routingControl, citizenLiveMarker = null;
+    let vehicleMarkersMap = {};
+
+    const API_BASE = 'http://127.0.0.1:8000';
+
+    function initMap() {
+      map = L.map('map').setView([DRIVER_LAT, DRIVER_LNG], 14);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      loadVehicles();
+      loadEmergencies();
+      initWebSocket();
+      checkSMSDeepLink();
+    }
+
+    async function loadVehicles() {
+      try {
+        const res = await fetch(API_BASE + '/vehicles');
+        if (!res.ok) return;
+        const list = await res.json();
+
+        const policeSyncEl = document.getElementById('policeSyncList');
+        if (policeSyncEl) policeSyncEl.innerHTML = '';
+
+        list.forEach(v => {
+          // Add or update marker on map
+          let pinClass = v.type === 'police' ? 'background:#1d4ed8' : 'background:#dc2626';
+          let iconChar = v.type === 'police' ? '🚓' : '🚑';
+
+          const customIcon = L.divIcon({
+            html: `<div style="${pinClass};color:white;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.4)">${iconChar}</div>`,
+            iconSize: [38, 38], iconAnchor: [19, 19]
+          });
+
+          if (vehicleMarkersMap[v.veh_id]) {
+            vehicleMarkersMap[v.veh_id].setLatLng([v.lat, v.lng]);
+          } else {
+            const m = L.marker([v.lat, v.lng], { icon: customIcon })
+              .bindPopup(`<b>${v.type.toUpperCase()} Unit ${v.veh_id}</b><br>Driver: ${v.driver_name}<br>Phone: ${v.phone}`);
+            m.addTo(map);
+            vehicleMarkersMap[v.veh_id] = m;
+          }
+
+          // Populate Police Sync list in panel
+          if (v.type === 'police' && policeSyncEl) {
+            const item = document.createElement('div');
+            item.style.cssText = 'background:#0f172a;padding:12px;border-radius:10px;border:1px solid #334155;';
+            item.innerHTML = `
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-weight:700;font-size:13px;color:#93c5fd">🚓 ${escapeHtml(v.veh_id)} — ${escapeHtml(v.driver_name)}</div>
+                <span style="font-size:10px;background:#1e3a8a;color:#93c5fd;padding:2px 6px;border-radius:4px;font-weight:700">POLICE</span>
+              </div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:4px">Phone: ${v.phone} | Lat: ${v.lat.toFixed(4)}, Lng: ${v.lng.toFixed(4)}</div>
+              <div style="margin-top:6px;display:flex;gap:6px">
+                <a href="tel:${v.phone}" class="btn btn-call" style="padding:4px 8px;font-size:11px;flex:1">📞 Call Officer</a>
+                <button onclick="map.flyTo([${v.lat}, ${v.lng}], 16)" style="background:#334155;color:white;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">📍 Focus</button>
+              </div>
+            `;
+            policeSyncEl.appendChild(item);
+          }
+        });
+      } catch(e) { }
+    }
+
+    function checkSMSDeepLink() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetLat = parseFloat(urlParams.get('lat'));
+      const targetLng = parseFloat(urlParams.get('lng'));
+      const emergencyId = urlParams.get('emergency_id');
+
+      if (targetLat && targetLng) {
+        document.getElementById('routeBanner').style.display = 'flex';
+        document.getElementById('routeBannerText').innerText = 
+          `📱 SMS Notification Deep Link Activated! Calculating Shortest Low-Traffic Route to (${targetLat.toFixed(4)}, ${targetLng.toFixed(4)})...`;
+
+        setTimeout(() => {
+          acceptAndRoute(targetLat, targetLng, emergencyId || 'SMS-DIRECT', 'Emergency Patient (via SMS Deep-Link)');
+        }, 600);
+      }
+    }
+
+    async function loadEmergencies() {
+      try {
+        const res = await fetch(API_BASE + '/emergencies');
+        if (res.ok) {
+          const list = await res.json();
+          renderDispatchList(list);
+        }
+      } catch(e) { console.error(e); }
+    }
+
+    function renderDispatchList(list) {
+      const container = document.getElementById('dispatchList');
+      if (!list.length) return;
+
+      container.innerHTML = '';
+      list.forEach(em => {
+        const card = document.createElement('div');
+        card.className = 'dispatch-card';
+        const patSmsText = `🚑 AMBULANCE EN ROUTE!\nUnit A-201 (108 Central) has accepted your emergency request and is navigating to your location.\nShortest Route Link:\nhttp://127.0.0.1:3000/ambulance.html?emergency_id=${em.id}&lat=${em.latitude}&lng=${em.longitude}&mode=fastest_route`;
+        const patSmsUri = `sms:${em.phone}?body=${encodeURIComponent(patSmsText)}`;
+
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="background:#ef4444;color:white;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:800">📱 LIVE SYNC SOS</span>
+            <span style="font-size:11px;color:#94a3b8">${new Date(em.timestamp).toLocaleTimeString()}</span>
+          </div>
+
+          <div class="patient-name">Patient: ${escapeHtml(em.citizen_name)}</div>
+          <div class="patient-detail"><i class="fa-solid fa-phone"></i> Phone: <strong>${em.phone}</strong></div>
+          <div class="patient-detail"><i class="fa-solid fa-location-dot"></i> Spot: ${escapeHtml(em.address)}</div>
+          ${em.assigned_police ? `<div style="font-size:12px;color:#60a5fa;font-weight:700">🚓 Synced Responder: Police ${em.assigned_police} is also responding!</div>` : ''}
+
+          <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+            <button class="btn btn-accept" style="flex:1" onclick="acceptAndRoute(${em.latitude}, ${em.longitude}, '${em.id}', '${escapeHtml(em.citizen_name)}')">
+              🚑 SHORTEST TRAFFIC ROUTE
+            </button>
+            <a href="tel:${em.phone}" class="btn btn-call">📞 Call</a>
+            <a href="${patSmsUri}" class="btn" style="background:#2563eb;color:white;text-decoration:none">📱 SMS Patient</a>
+          </div>
+        `;
+        container.appendChild(card);
+
+        const patientPin = L.divIcon({
+          html: `<div style="background:#ef4444;color:white;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid white;box-shadow:0 0 18px #ef4444">🆘</div>`,
+          iconSize: [38, 38], iconAnchor: [19, 19]
+        });
+        L.marker([em.latitude, em.longitude], { icon: patientPin })
+          .bindPopup(`<b>Emergency Patient</b><br>${em.citizen_name}<br>Phone: ${em.phone}`)
+          .addTo(map);
+      });
+    }
+
+    function handleCitizenLocationSync(data) {
+      if (citizenLiveMarker) map.removeLayer(citizenLiveMarker);
+      const userPin = L.divIcon({
+        html: `<div style="background:#2563eb;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 0 14px #2563eb">👤</div>`,
+        iconSize: [34, 34], iconAnchor: [17, 17]
+      });
+      citizenLiveMarker = L.marker([data.latitude, data.longitude], { icon: userPin })
+        .bindPopup(`<b>Live Synced Citizen User</b><br>Status: ${data.status}`)
+        .addTo(map);
+    }
+
+    function acceptAndRoute(pLat, pLng, emId, name) {
+      if (routingControl) map.removeControl(routingControl);
+
+      routingControl = L.Routing.control({
+        waypoints: [
+          L.latLng(DRIVER_LAT, DRIVER_LNG),
+          L.latLng(pLat, pLng)
+        ],
+        router: L.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1',
+          profile: 'driving'
+        }),
+        lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.9 }] },
+        showAlternatives: true,
+        altLineOptions: { styles: [{ color: '#3b82f6', weight: 4, opacity: 0.5 }] },
+        addWaypoints: false
+      }).addTo(map);
+
+      routingControl.on('routesfound', function(e) {
+        const routes = e.routes;
+        const shortest = routes[0];
+        const distKm = (shortest.summary.totalDistance / 1000).toFixed(2);
+        const timeMins = Math.round(shortest.summary.totalTime / 60);
+
+        document.getElementById('routeBanner').style.display = 'flex';
+        document.getElementById('routeBannerText').innerHTML = 
+          `⚡ <strong>Shortest & Low-Traffic Route Calculated:</strong> Distance: <strong>${distKm} km</strong> | ETA: <strong>${timeMins} mins</strong> to ${name}`;
+      });
+
+      map.flyTo([pLat, pLng], 15);
+      playSirenSound();
+
+      fetch(API_BASE + '/emergency/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emergency_id: emId, responder_id: 'A-201', responder_type: 'ambulance' })
+      }).catch(e => console.error(e));
+    }
+
+    function initWebSocket() {
+      try {
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws');
+        ws.onmessage = (evt) => {
+          const msg = JSON.parse(evt.data);
+          if (msg.event === 'emergency_alert') {
+            playSirenSound();
+            loadEmergencies();
+          } else if (msg.event === 'citizen_location_sync' && msg.data) {
+            handleCitizenLocationSync(msg.data);
+          } else if (msg.event === 'vehicle_update' && msg.vehicle) {
+            loadVehicles();
+          } else if (msg.event === 'emergency_assigned') {
+            loadEmergencies();
+          }
+        };
+      } catch(e) { console.warn(e); }
+    }
+
+    function playSirenSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(650, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.4);
+        osc.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.7);
+      } catch(e) { }
+    }
+
+    function escapeHtml(s) { return ('' + s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+    document.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html>

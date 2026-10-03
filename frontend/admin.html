@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>City 360 — Police Command Center (Davangere)</title>
+
+  <!-- Leaflet + MarkerCluster + Routing -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg: #f3f6f9;
+      --card: #fff;
+      --accent: #0ea5e9
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, system-ui
+    }
+
+    body {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column
+    }
+
+    .site-header {
+      background: linear-gradient(90deg, #0f172a, #1e3a8a, #2563eb);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .site-header .brand {
+      font-weight: 700;
+      font-size: 20px
+    }
+
+    .site-header .subtitle {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-top: 4px
+    }
+
+    .whatsapp-banner {
+      background: linear-gradient(90deg, #059669, #10b981);
+      color: white;
+      padding: 10px 24px;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .admin-container {
+      display: flex;
+      gap: 20px;
+      padding: 22px
+    }
+
+    .admin-left {
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 10px 20px rgba(16, 24, 40, 0.06)
+    }
+
+    .card h3 {
+      margin: 0 0 10px 0
+    }
+
+    .btn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 0;
+      cursor: pointer;
+      background: #e6e9ee
+    }
+
+    .btn.primary {
+      background: #0077ff;
+      color: #fff
+    }
+
+    .admin-right {
+      flex: 1
+    }
+
+    #adminMap {
+      width: 100%;
+      height: calc(100vh - 160px);
+      border-radius: 12px
+    }
+
+    .sos-banner {
+      background: #fee2e2;
+      border: 2px solid #ef4444;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      display: none;
+      animation: alertPulse 1s infinite alternate;
+    }
+
+    @keyframes alertPulse {
+      from { background: #fee2e2; }
+      to { background: #fca5a5; }
+    }
+
+    footer {
+      text-align: center;
+      padding: 14px;
+      color: #777;
+      font-size: 13px
+    }
+  </style>
+</head>
+
+<body>
+  <header class="site-header">
+    <div>
+      <div class="brand">City 360 — Police HQ Command Center</div>
+      <div class="subtitle">Davangere District Police Live Dispatch & Control Room (Synced with 108 Ambulance Fleet)</div>
+    </div>
+    <div style="background:rgba(255,255,255,0.15);padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600">
+      🟢 Police HQ Online
+    </div>
+  </header>
+
+  <!-- WhatsApp Deep-Link Alert Banner -->
+  <div id="whatsappBanner" class="whatsapp-banner" style="display:none;">
+    <div>
+      <i class="fa-brands fa-whatsapp" style="font-size:16px;margin-right:8px"></i>
+      <span id="waBannerText">WhatsApp Notification Deep Link Activated — Shortest Police Dispatch Route Active</span>
+    </div>
+    <div style="background:rgba(255,255,255,0.2);padding:4px 10px;border-radius:6px;font-size:11px">
+      Low-Traffic Route Optimization
+    </div>
+  </div>
+
+  <div class="admin-container">
+    <div class="admin-left">
+
+      <div id="sosBanner" class="sos-banner">
+        <div style="font-weight:800;color:#991b1b;font-size:14px">🚨 CRITICAL EMERGENCY SOS DISPATCH</div>
+        <div id="sosDetails" style="font-size:12px;color:#7f1d1d;margin-top:4px">Waiting for alerts...</div>
+        <button id="sosRouteBtn" class="btn primary" style="margin-top:8px;width:100%;background:#dc2626">Dispatch Police Unit & Route</button>
+      </div>
+
+      <!-- Synced Ambulance Fleet Panel -->
+      <div class="card" style="border:1px solid #fee2e2">
+        <h3 style="color:#b91c1c;font-size:15px;display:flex;align-items:center;gap:8px">
+          <i class="fa-solid fa-truck-medical"></i> Synced 108 Ambulance Units
+        </h3>
+        <div id="ambulanceSyncList" style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+          <!-- Dynamically populated live ambulances -->
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Analytics Overview</h3>
+        <canvas id="barChart" style="max-height:130px"></canvas>
+        <canvas id="pieChart" style="max-height:130px;margin-top:12px"></canvas>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button id="exportBtn" class="btn primary">Export CSV</button>
+          <button id="downloadMarkers" class="btn">Download JSON</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Map Legend</h3>
+        <div><span style="display:inline-block;width:12px;height:12px;background:#0b84ff;margin-right:8px"></span>Police Patrol Units</div>
+        <div><span style="display:inline-block;width:12px;height:12px;background:#00b894;margin-right:8px"></span>108 Ambulances</div>
+        <div><span style="display:inline-block;width:12px;height:12px;background:#ff4757;margin-right:8px"></span>Emergency SOS</div>
+      </div>
+
+    </div>
+
+    <div class="admin-right">
+      <div id="adminMap"></div>
+    </div>
+  </div>
+
+  <footer>City 360 • Davangere Police Admin</footer>
+
+  <!-- JS LIBRARIES -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+  <script>
+    const HQ = [14.4668, 75.9219]; // Davangere Town Police Station HQ
+    const API_BASE = 'http://127.0.0.1:8000';
+
+    let map, markersCluster, routingControl, currentEmergency = null, citizenLiveMarker = null;
+    let vehicleMarkersMap = {};
+
+    function initMap() {
+      map = L.map('adminMap').setView(HQ, 13);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+      }).addTo(map);
+
+      markersCluster = L.markerClusterGroup();
+      map.addLayer(markersCluster);
+
+      loadVehicles();
+      loadEmergencies();
+      initWebSocket();
+      checkWhatsAppDeepLink();
+    }
+
+    async function loadVehicles() {
+      try {
+        const res = await fetch(API_BASE + '/vehicles');
+        if (!res.ok) return;
+        const list = await res.json();
+
+        const ambSyncEl = document.getElementById('ambulanceSyncList');
+        if (ambSyncEl) ambSyncEl.innerHTML = '';
+
+        list.forEach(v => {
+          let color = v.type === 'police' ? '#0b84ff' : '#00b894';
+          let iconChar = v.type === 'police' ? '🚓' : '🚑';
+
+          const customIcon = L.divIcon({
+            html: `<div style="background:${color};color:white;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.3)">${iconChar}</div>`,
+            iconSize: [36, 36], iconAnchor: [18, 18]
+          });
+
+          if (vehicleMarkersMap[v.veh_id]) {
+            vehicleMarkersMap[v.veh_id].setLatLng([v.lat, v.lng]);
+          } else {
+            const m = L.marker([v.lat, v.lng], { icon: customIcon })
+              .bindPopup(`<b>${v.type.toUpperCase()} Unit ${v.veh_id}</b><br>Driver/Officer: ${v.driver_name}<br>Phone: ${v.phone}`);
+            markersCluster.addLayer(m);
+            vehicleMarkersMap[v.veh_id] = m;
+          }
+
+          if (v.type === 'ambulance' && ambSyncEl) {
+            const ambSmsText = `🚨 POLICE HQ AMBULANCE DISPATCH ALERT!\nDriver: ${v.driver_name}\nPlease respond immediately to current active SOS.\nRoute Link:\nhttp://127.0.0.1:3000/ambulance.html?lat=${v.lat}&lng=${v.lng}&mode=fastest_route`;
+            const ambSmsUri = `sms:${v.phone}?body=${encodeURIComponent(ambSmsText)}`;
+
+            const item = document.createElement('div');
+            item.style.cssText = 'background:#fef2f2;padding:10px;border-radius:8px;border:1px solid #fecaca;';
+            item.innerHTML = `
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="font-weight:700;font-size:13px;color:#991b1b">🚑 ${escapeHtml(v.veh_id)} — ${escapeHtml(v.driver_name)}</div>
+                <span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 6px;border-radius:4px;font-weight:700">108 UNIT</span>
+              </div>
+              <div style="font-size:11px;color:#7f1d1d;margin-top:4px">Phone: ${v.phone} | Status: ${v.status}</div>
+              <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+                <a href="tel:${v.phone}" class="btn" style="padding:4px 8px;font-size:11px;background:#dc2626;color:white;flex:1;text-align:center;text-decoration:none">📞 Call</a>
+                <a href="${ambSmsUri}" class="btn" style="padding:4px 8px;font-size:11px;background:#2563eb;color:white;flex:1;text-align:center;text-decoration:none">📱 SMS Ambulance</a>
+                <button onclick="map.flyTo([${v.lat}, ${v.lng}], 16)" style="background:#e2e8f0;color:#0f172a;border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer">📍 Focus</button>
+              </div>
+            `;
+            ambSyncEl.appendChild(item);
+          }
+        });
+      } catch(e) { }
+    }
+
+    async function loadEmergencies() {
+      try {
+        const res = await fetch(API_BASE + '/emergencies');
+        if (res.ok) {
+          const list = await res.json();
+          if (list.length > 0) {
+            const latest = list[list.length - 1];
+            handleEmergencyAlert(latest);
+          }
+        }
+      } catch(e) { }
+    }
+
+    function checkWhatsAppDeepLink() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetLat = parseFloat(urlParams.get('lat'));
+      const targetLng = parseFloat(urlParams.get('lng'));
+
+      if (targetLat && targetLng) {
+        document.getElementById('whatsappBanner').style.display = 'flex';
+        document.getElementById('waBannerText').innerText = 
+          `💬 WhatsApp Notification Deep Link Activated! Calculating Shortest Low-Traffic Police Dispatch Route...`;
+
+        setTimeout(() => {
+          createRoute([targetLat, targetLng]);
+          map.flyTo([targetLat, targetLng], 15);
+        }, 600);
+      }
+    }
+
+    function createRoute(dest) {
+      if (routingControl) map.removeControl(routingControl);
+
+      routingControl = L.Routing.control({
+        waypoints: [L.latLng(HQ), L.latLng(dest)],
+        router: L.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1',
+          profile: 'driving'
+        }),
+        lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.9 }] },
+        showAlternatives: true,
+        routeWhileDragging: false,
+      }).addTo(map);
+
+      routingControl.on('routesfound', function(e) {
+        const shortest = e.routes[0];
+        const distKm = (shortest.summary.totalDistance / 1000).toFixed(2);
+        const timeMins = Math.round(shortest.summary.totalTime / 60);
+
+        document.getElementById('whatsappBanner').style.display = 'flex';
+        document.getElementById('waBannerText').innerHTML = 
+          `💬 <strong>WhatsApp Link Shortest Route Active:</strong> Distance: <strong>${distKm} km</strong> | Police Unit ETA: <strong>${timeMins} mins</strong>`;
+      });
+    }
+
+    function fitAllMarkers() {
+      const layers = markersCluster.getLayers();
+      if (layers.length === 0) return;
+      map.fitBounds(L.featureGroup(layers).getBounds().pad(0.2));
+    }
+
+    function drawCharts(data) {
+      const barEl = document.getElementById('barChart');
+      const pieEl = document.getElementById('pieChart');
+      if (barEl && pieEl) {
+        new Chart(barEl, { type: 'bar', data: { labels: ['Police', 'Ambulance', 'Emergency'], datasets: [{ data: [2, 2, 1] }] } });
+        new Chart(pieEl, { type: 'pie', data: { labels: ['Active', 'En Route'], datasets: [{ data: [3, 1] }] } });
+      }
+    }
+
+    function exportCSV() {
+      const csv = "id,type,title,lat,lng,status\n1,police,P-101,14.466,75.920,active\n2,ambulance,A-201,14.465,75.917,active";
+      download("incidents.csv", csv);
+    }
+
+    function download(name, text) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      a.download = name;
+      a.click();
+    }
+
+    function initWebSocket() {
+      try {
+        const ws = new WebSocket('ws://127.0.0.1:8000/ws');
+        ws.onmessage = (evt) => {
+          const msg = JSON.parse(evt.data);
+          if (msg.event === 'emergency_alert' && msg.emergency) {
+            handleEmergencyAlert(msg.emergency);
+          } else if (msg.event === 'citizen_location_sync' && msg.data) {
+            handleCitizenLocationSync(msg.data);
+          } else if (msg.event === 'vehicle_update' && msg.vehicle) {
+            loadVehicles();
+          } else if (msg.event === 'emergency_assigned' && msg.emergency) {
+            if (msg.emergency.assigned_ambulance) {
+              alert(`🚑 CROSS-PORTAL SYNC: 108 Ambulance ${msg.emergency.assigned_ambulance} HAS ACCEPTED DISPATCH & IS EN ROUTE!`);
+            }
+          }
+        };
+      } catch(e) { console.warn(e); }
+    }
+
+    function handleCitizenLocationSync(data) {
+      if (citizenLiveMarker) map.removeLayer(citizenLiveMarker);
+      const userPin = L.divIcon({
+        html: `<div style="background:#2563eb;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid white;box-shadow:0 0 14px #2563eb">👤</div>`,
+        iconSize: [34, 34], iconAnchor: [17, 17]
+      });
+      citizenLiveMarker = L.marker([data.latitude, data.longitude], { icon: userPin })
+        .bindPopup(`<b>Synced Citizen User</b><br>Status: ${data.status}`)
+        .addTo(map);
+    }
+
+    function handleEmergencyAlert(em) {
+      currentEmergency = em;
+      const banner = document.getElementById('sosBanner');
+      const details = document.getElementById('sosDetails');
+      banner.style.display = 'block';
+      details.innerHTML = `<strong>${em.citizen_name}</strong> (${em.phone})<br/>Address: ${em.address}`;
+
+      map.flyTo([em.latitude, em.longitude], 15);
+      createRoute([em.latitude, em.longitude]);
+    }
+
+    function escapeHtml(s) { return ('' + s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initMap();
+      drawCharts();
+
+      exportBtn.onclick = exportCSV;
+      downloadMarkers.onclick = () => download("markers.json", JSON.stringify([], null, 2));
+
+      document.getElementById('sosRouteBtn').onclick = () => {
+        if (currentEmergency) {
+          createRoute([currentEmergency.latitude, currentEmergency.longitude]);
+          alert('Police Patrol Unit P-101 Dispatched to Emergency Spot!');
+
+          fetch(API_BASE + '/emergency/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emergency_id: currentEmergency.id, responder_id: 'P-101', responder_type: 'police' })
+          }).catch(e => console.error(e));
+        }
+      };
+    });
+  </script>
+</body>
+
+</html>

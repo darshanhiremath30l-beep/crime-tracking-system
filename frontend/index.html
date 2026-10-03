@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>City 360 — Davangere Live Emergency & Tracking System</title>
+
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="style.css"/>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+</head>
+<body>
+
+  <!-- Site Header -->
+  <header class="site-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
+      <div>
+        <div class="brand-title">City 360 Davangere</div>
+        <div class="brand-subtitle">Live Crime & Emergency Response Command Center</div>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="city-badge">
+        <span class="live-dot"></span>
+        <span>Davangere Active Tracking</span>
+      </div>
+      <a href="tel:112" class="sos-header-btn">
+        <i class="fa-solid fa-phone-flip"></i> Emergency SOS 112
+      </a>
+    </div>
+  </header>
+
+  <!-- App Layout Container -->
+  <div class="container">
+    
+    <!-- Sidebar Emergency & Station Directory -->
+    <aside class="sidebar">
+
+      <!-- Navigation Tabs -->
+      <nav class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="police">
+          <i class="fa-solid fa-building-shield"></i>
+          <span>Police</span>
+          <span class="tab-badge" id="policeCount">7</span>
+        </button>
+        <button class="tab-btn" data-tab="ambulance">
+          <i class="fa-solid fa-truck-medical"></i>
+          <span>Ambulance</span>
+          <span class="tab-badge" id="ambulanceCount">6</span>
+        </button>
+        <button class="tab-btn" data-tab="areas">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span>City Areas</span>
+        </button>
+        <button class="tab-btn" data-tab="patrols">
+          <i class="fa-solid fa-satellite-dish"></i>
+          <span>Live Units</span>
+          <span class="tab-badge" id="livePatrolCount">0</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Search Input -->
+      <div class="sidebar-search">
+        <div class="search-input-wrapper">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="sidebarSearchInput" placeholder="Search police stations, ambulances, areas..."/>
+        </div>
+      </div>
+
+      <!-- Tab Content: Police Stations -->
+      <div id="policeTab" class="tab-content" style="display: flex;">
+        <div id="policeList" class="directory-list"></div>
+      </div>
+
+      <!-- Tab Content: Ambulances & Emergency Hospitals -->
+      <div id="ambulanceTab" class="tab-content" style="display: none;">
+        <div id="ambulanceList" class="directory-list"></div>
+      </div>
+
+      <!-- Tab Content: Davangere City Areas -->
+      <div id="areasTab" class="tab-content" style="display: none;">
+        <div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:4px;">
+          Select any area to track and zoom live location:
+        </div>
+        <div id="areasGrid" class="areas-grid"></div>
+      </div>
+
+      <!-- Tab Content: Live Patrol Units -->
+      <div id="patrolsTab" class="tab-content" style="display: none;">
+        <div id="patrolList" class="directory-list"></div>
+      </div>
+
+    </aside>
+
+    <!-- Main Map View Area -->
+    <main class="main">
+      <div class="map-wrapper">
+        
+        <!-- Floating Top Bar with Area Quick Chips & Layer Controls -->
+        <div class="map-top-bar">
+          <div class="map-area-chips" id="mapAreaChips">
+            <!-- Dynamic area chip buttons rendered by app.js -->
+          </div>
+
+          <div class="map-layer-toggles">
+            <button class="layer-toggle-btn active" id="togglePoliceLayer">
+              <i class="fa-solid fa-shield-halved"></i> Police Pins
+            </button>
+            <button class="layer-toggle-btn active" id="toggleAmbulanceLayer">
+              <i class="fa-solid fa-truck-medical"></i> Ambulance Pins
+            </button>
+          </div>
+        </div>
+
+        <!-- Leaflet Map Canvas -->
+        <div id="map"></div>
+
+        <!-- Floating SOS Quick Panel -->
+        <div class="floating-sos-panel">
+          <div class="sos-panel-title">
+            <i class="fa-solid fa-circle-exclamation"></i> Davangere Helpline
+          </div>
+          <div class="sos-buttons-row">
+            <a href="tel:112" class="sos-quick-call police">
+              <span>112</span>
+              <span class="sos-label">Police</span>
+            </a>
+            <a href="tel:108" class="sos-quick-call ambulance">
+              <span>108</span>
+              <span class="sos-label">Ambulance</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script src="app.js"></script>
+</body>
+</html>

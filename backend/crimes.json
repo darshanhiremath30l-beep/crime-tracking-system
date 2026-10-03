@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "title": "Local Script Test",
+    "description": "Inserted by add_crime_local.py",
+    "latitude": 6.5,
+    "longitude": 3.3,
+    "type": "crime",
+    "severity": "2",
+    "created_at": "2025-11-28 13:12:12",
+    "media_url": null
+  }
+]

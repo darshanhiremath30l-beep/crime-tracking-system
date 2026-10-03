@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy>=1.4
+python-dotenv
+oracledb          # modern Oracle driver (pip name: oracledb)
+pydantic
+python-multipart
+aiofiles
+pymysql           # MySQL driver for SQLAlchemy
