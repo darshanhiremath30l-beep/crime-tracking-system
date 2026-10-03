@@ -452,9 +452,27 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def vehicle_simulator():
     while True:
+        target_lat, target_lng = None, None
+        if active_emergencies:
+            latest = active_emergencies[-1]
+            target_lat = latest.get("latitude")
+            target_lng = latest.get("longitude")
+
         for v in vehicles:
-            v.lat += random.uniform(-0.0004, 0.0004)
-            v.lng += random.uniform(-0.0004, 0.0004)
+            if target_lat and target_lng and v.veh_id in ["P-101", "A-201"]:
+                d_lat = target_lat - v.lat
+                d_lng = target_lng - v.lng
+                dist = (d_lat**2 + d_lng**2)**0.5
+                if dist > 0.0003:
+                    v.lat += (d_lat / dist) * 0.0006
+                    v.lng += (d_lng / dist) * 0.0006
+                    v.status = "EN_ROUTE_TO_INCIDENT"
+                else:
+                    v.status = "ARRIVED_AT_INCIDENT"
+            else:
+                v.lat += random.uniform(-0.0003, 0.0003)
+                v.lng += random.uniform(-0.0003, 0.0003)
+
             await manager.broadcast({
                 "event": "vehicle_update",
                 "vehicle": {
@@ -477,7 +495,7 @@ async def vehicle_simulator():
         finally:
             db.close()
         await manager.broadcast({"event": "stats_update", "stats": stats})
-        await asyncio.sleep(6)
+        await asyncio.sleep(2)
 
 @app.on_event("startup")
 async def startup_event():

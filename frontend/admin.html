@@ -397,12 +397,23 @@
         .addTo(map);
     }
 
+    let adminIncidentMarker = null;
+
     function handleEmergencyAlert(em) {
       currentEmergency = em;
       const banner = document.getElementById('sosBanner');
       const details = document.getElementById('sosDetails');
       banner.style.display = 'block';
       details.innerHTML = `<strong>${em.citizen_name}</strong> (${em.phone})<br/>Address: ${em.address}`;
+
+      if (adminIncidentMarker) map.removeLayer(adminIncidentMarker);
+      const incidentPin = L.divIcon({
+        html: `<div style="background:#dc2626;color:white;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid #ffffff;box-shadow:0 0 25px #ef4444">🆘</div>`,
+        iconSize: [44, 44], iconAnchor: [22, 22]
+      });
+      adminIncidentMarker = L.marker([em.latitude, em.longitude], { icon: incidentPin, zIndexOffset: 1000 })
+        .bindPopup(`<b style="color:#dc2626;font-size:14px">🚨 INCIDENT LOCATION MARKER</b><br>Patient: ${escapeHtml(em.citizen_name)}<br>Phone: ${em.phone}`)
+        .addTo(map);
 
       map.flyTo([em.latitude, em.longitude], 15);
       createRoute([em.latitude, em.longitude]);

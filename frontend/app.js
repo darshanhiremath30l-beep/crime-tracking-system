@@ -283,25 +283,30 @@ function loadDavangerePOIs() {
 
 const API_BASE = 'http://127.0.0.1:8000';
 
+let liveVehicleMarkersMap = {};
+let activeIncidentSpot = null;
+let policeLiveRouteControl = null;
+let ambulanceLiveRouteControl = null;
+
 async function loadVehicles() {
   try {
     const res = await fetch(API_BASE + '/vehicles');
     if (!res.ok) return;
     const list = await res.json();
     
-    livePatrolLayer.clearLayers();
     const patrolListEl = document.getElementById('patrolList');
     if (patrolListEl) patrolListEl.innerHTML = '';
 
     list.forEach(v => {
-      const pin = v.type === 'ambulance' ? ambulancePin : policePin;
-      const m = L.marker([v.lat, v.lng], { icon: pin })
-        .bindPopup(`<b>${v.type.toUpperCase()} Live Unit</b><br>ID: ${v.veh_id}<br>Driver: ${v.driver_name || 'Responder'}<br>Phone: ${v.phone || 'N/A'}`);
-      livePatrolLayer.addLayer(m);
+      updateVehicleOnMap(v);
 
       if (patrolListEl) {
         const item = document.createElement('div');
         item.className = 'info-card';
+        const isResponding = v.status.includes('EN_ROUTE') || v.status.includes('INCIDENT');
+        const badgeColor = isResponding ? 'badge-red' : 'badge-green';
+        const statusLabel = isResponding ? 'EN ROUTE TO SOS' : 'LIVE PATROL';
+
         item.innerHTML = `
           <div class="card-header-row">
             <div class="card-title-group">
@@ -311,7 +316,7 @@ async function loadVehicles() {
                 <div class="card-subtitle">Driver: ${v.driver_name || 'Active Driver'}</div>
               </div>
             </div>
-            <span class="card-badge badge-green">LIVE</span>
+            <span class="card-badge ${badgeColor}">${statusLabel}</span>
           </div>
           <div class="card-detail-row">📍 Lat: ${v.lat.toFixed(4)}, Lng: ${v.lng.toFixed(4)}</div>
           <div class="card-actions">
@@ -337,6 +342,60 @@ async function loadVehicles() {
   }
 }
 
+function updateVehicleOnMap(v) {
+  if (!map) return;
+  const pin = v.type === 'ambulance' ? ambulancePin : policePin;
+  const isEnRoute = v.status.includes('EN_ROUTE') || v.status.includes('INCIDENT');
+  const popupContent = `
+    <div style="font-family:Inter,sans-serif;padding:4px">
+      <h4 style="margin:0 0 4px 0;color:${v.type==='ambulance'?'#dc2626':'#1d4ed8'}">
+        ${v.type==='ambulance'?'🚑 108 Ambulance Unit':'🚓 Police Patrol Unit'} ${v.veh_id}
+      </h4>
+      <div style="font-size:12px;color:#334155"><strong>Driver:</strong> ${escapeHtml(v.driver_name)}</div>
+      <div style="font-size:12px;color:#334155"><strong>Contact:</strong> ${v.phone}</div>
+      <div style="font-size:12px;color:${isEnRoute?'#ef4444':'#10b981'};font-weight:700;margin-top:4px">
+        ● Status: ${isEnRoute ? '🚨 Navigating to Emergency Spot' : 'Active On-Duty Patrol'}
+      </div>
+    </div>
+  `;
+
+  if (liveVehicleMarkersMap[v.veh_id]) {
+    liveVehicleMarkersMap[v.veh_id].setLatLng([v.lat, v.lng]);
+    liveVehicleMarkersMap[v.veh_id].getPopup().setContent(popupContent);
+  } else {
+    const m = L.marker([v.lat, v.lng], { icon: pin }).bindPopup(popupContent);
+    livePatrolLayer.addLayer(m);
+    liveVehicleMarkersMap[v.veh_id] = m;
+  }
+
+  // Update live routing line if responding to incident
+  if (activeIncidentSpot && (v.veh_id === 'P-101' || v.veh_id === 'A-201')) {
+    updateResponderLiveRouting(v.veh_id, v.type, v.lat, v.lng, activeIncidentSpot.lat, activeIncidentSpot.lng);
+  }
+}
+
+function updateResponderLiveRouting(vehId, type, vLat, vLng, targetLat, targetLng) {
+  if (!window.L || !window.L.Routing || !map) return;
+
+  if (vehId === 'P-101') {
+    if (policeLiveRouteControl) map.removeControl(policeLiveRouteControl);
+    policeLiveRouteControl = L.Routing.control({
+      waypoints: [L.latLng(vLat, vLng), L.latLng(targetLat, targetLng)],
+      router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'driving' }),
+      lineOptions: { styles: [{ color: '#2563eb', weight: 6, opacity: 0.9 }] },
+      showAlternatives: false, addWaypoints: false, createMarker: () => null
+    }).addTo(map);
+  } else if (vehId === 'A-201') {
+    if (ambulanceLiveRouteControl) map.removeControl(ambulanceLiveRouteControl);
+    ambulanceLiveRouteControl = L.Routing.control({
+      waypoints: [L.latLng(vLat, vLng), L.latLng(targetLat, targetLng)],
+      router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1', profile: 'driving' }),
+      lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.9 }] },
+      showAlternatives: false, addWaypoints: false, createMarker: () => null
+    }).addTo(map);
+  }
+}
+
 function initWebSocketSync() {
   try {
     ws = new WebSocket('ws://127.0.0.1:8000/ws');
@@ -344,7 +403,13 @@ function initWebSocketSync() {
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.event === 'emergency_assigned' && msg.emergency) {
+        if (msg.event === 'vehicle_update' && msg.vehicle) {
+          updateVehicleOnMap(msg.vehicle);
+        } else if (msg.event === 'emergency_alert' && msg.emergency) {
+          activeIncidentSpot = { lat: msg.emergency.latitude, lng: msg.emergency.longitude };
+          showResponderEnRouteBanner('Emergency Dispatch', 'Police P-101 & Ambulance A-201', msg.emergency.latitude, msg.emergency.longitude);
+        } else if (msg.event === 'emergency_assigned' && msg.emergency) {
+          activeIncidentSpot = { lat: msg.emergency.latitude, lng: msg.emergency.longitude };
           const respUnit = msg.emergency.assigned_ambulance || msg.emergency.assigned_police;
           const respType = msg.emergency.assigned_ambulance ? 'Ambulance Unit' : 'Police Patrol Unit';
           showResponderEnRouteBanner(respType, respUnit, msg.emergency.latitude, msg.emergency.longitude);
@@ -367,36 +432,39 @@ async function broadcastCitizenLocation(lat, lng, status = "Active Tracking") {
 }
 
 function showResponderEnRouteBanner(respType, respUnit, emLat, emLng) {
+  activeIncidentSpot = { lat: emLat, lng: emLng };
+
   let banner = document.getElementById('citizenResponderSyncBanner');
   if (!banner) {
     banner = document.createElement('div');
     banner.id = 'citizenResponderSyncBanner';
     banner.style.cssText = `
       position: fixed; top: 76px; left: 50%; transform: translateX(-50%);
-      background: linear-gradient(135deg, #065f46, #047857);
+      background: linear-gradient(135deg, #0f172a, #1e3a8a);
       color: white; padding: 12px 24px; border-radius: 30px;
-      z-index: 9999; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      z-index: 9999; box-shadow: 0 10px 30px rgba(0,0,0,0.4);
       font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 10px;
-      border: 2px solid #10b981; animation: pulseBanner 1.5s infinite alternate;
+      border: 2px solid #3b82f6; animation: pulseBanner 1.5s infinite alternate;
     `;
     document.body.appendChild(banner);
   }
 
   banner.innerHTML = `
     <span style="font-size:18px">🚨</span>
-    <span>DISPATCH EN ROUTE: <strong>${respType} ${respUnit}</strong> HAS ACCEPTED YOUR EMERGENCY & IS NAVIGATING TO YOUR LOCATION!</span>
+    <span>DISPATCH EN ROUTE: <strong>🚓 Police Patrol P-101</strong> &amp; <strong>🚑 108 Ambulance A-201</strong> ARE MOVING TO YOUR INCIDENT LOCATION LIVE ON MAP!</span>
   `;
 
-  if (window.L && window.L.Routing && map) {
-    if (liveRouteControl) map.removeControl(liveRouteControl);
-    liveRouteControl = L.Routing.control({
-      waypoints: [L.latLng(14.4655, 75.9175), L.latLng(emLat, emLng)],
-      lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.9 }] },
-      showAlternatives: false, addWaypoints: false
-    }).addTo(map);
-  }
+  // Draw emergency spot marker on citizen map
+  const emergencyPin = L.divIcon({
+    html: `<div style="background:#ef4444;color:white;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;border:3px solid white;box-shadow:0 0 20px #ef4444" class="pin-pulse">🆘</div>`,
+    iconSize: [42, 42], iconAnchor: [21, 21]
+  });
+  L.marker([emLat, emLng], { icon: emergencyPin })
+    .bindPopup(`<b style="color:#ef4444">🚨 Active Emergency Incident Spot</b><br>Responders en route!`)
+    .addTo(map);
 
-  flyToCoord(emLat, emLng, 'Live Responder Destination');
+  loadVehicles();
+  flyToCoord(emLat, emLng, 'Live Emergency Incident Spot');
 }
 
 // ==========================================
