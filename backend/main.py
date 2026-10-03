@@ -178,6 +178,43 @@ def send_real_twilio_whatsapp_and_sms(phone_num: str, message: str):
         print(f"[Twilio Error] {e}")
         return False
 
+def send_formspree_email_notification(emergency_data: dict):
+    """Sends automated email notifications to Police & Ambulance HQ via Formspree API."""
+    formspree_url = os.getenv("FORMSPREE_ENDPOINT", "https://formspree.io/f/mdekqkqb")
+    if not formspree_url:
+        print("[Formspree] No FORMSPREE_ENDPOINT configured.")
+        return False
+
+    try:
+        payload = {
+            "email": os.getenv("FORMSPREE_EMAIL", "davangere.emergency.control@gmail.com"),
+            "_subject": f"🚨 EMERGENCY SOS DISPATCH ALERT: {emergency_data.get('citizen_name', 'Patient')} ({emergency_data.get('address', 'Davangere')})",
+            "patient_name": emergency_data.get("citizen_name", "Citizen"),
+            "phone_number": emergency_data.get("phone", "N/A"),
+            "address": emergency_data.get("address", "Davangere"),
+            "latitude": emergency_data.get("latitude"),
+            "longitude": emergency_data.get("longitude"),
+            "details": emergency_data.get("details", "Emergency SOS Triggered"),
+            "timestamp": emergency_data.get("timestamp"),
+            "ambulance_portal_link": emergency_data.get("ambulance_redirect_url"),
+            "police_admin_link": emergency_data.get("police_redirect_url")
+        }
+        data = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+        req = urllib.request.Request(formspree_url, data=data, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            res_str = response.read().decode("utf-8")
+            print(f"[Formspree Success] Automated Email Sent via Formspree ({formspree_url}): {res_str}")
+            return True
+    except Exception as e:
+        print(f"[Formspree Error] Failed to send Formspree email alert: {e}")
+        return False
+
+
 @app.get("/crimes", response_model=List[CrimeOut])
 def get_crimes():
     db = SessionLocal()
@@ -253,7 +290,7 @@ async def post_report(
 async def trigger_emergency(payload: EmergencyPayload):
     db = SessionLocal()
     
-    user_phone = payload.phone if (payload.phone and len(payload.phone) >= 10) else NOTIFY_PHONE
+    user_phone = payload.phone if (payload.phone and payload.phone.strip()) else "Not Provided"
     title = f"🚨 SOS EMERGENCY ALERT — {payload.address}"
     desc = f"PATIENT: {payload.citizen_name} | PHONE: {user_phone} | DETAILS: {payload.details}"
     
@@ -277,11 +314,9 @@ async def trigger_emergency(payload: EmergencyPayload):
     ambulance_sms_uri = f"sms:{user_phone}?body={urllib.parse.quote(sms_text)}"
 
     whatsapp_text = f"🚨 CRITICAL POLICE EMERGENCY ALERT (Davangere)\nPatient: {payload.citizen_name}\nSpot: {payload.address}\nPhone: {user_phone}\nShortest Route Link:\n{police_url}"
-    whatsapp_api_link = f"https://api.whatsapp.com/send?phone={CLEAN_WA_NUM}&text={urllib.parse.quote(whatsapp_text)}"
-
-    # Attempt physical Fast2SMS dispatch to user's phone number
-    send_real_fast2sms(user_phone, sms_text)
-    send_real_twilio_whatsapp_and_sms(user_phone, whatsapp_text)
+    clean_num = "".join(c for c in user_phone if c.isdigit())
+    wa_target = ("91" + clean_num[-10:]) if len(clean_num) >= 10 else ""
+    whatsapp_api_link = f"https://api.whatsapp.com/send?phone={wa_target}&text={urllib.parse.quote(whatsapp_text)}" if wa_target else f"https://api.whatsapp.com/send?text={urllib.parse.quote(whatsapp_text)}"
 
     emergency_data = {
         "id": c.id,
@@ -304,6 +339,13 @@ async def trigger_emergency(payload: EmergencyPayload):
         "police_whatsapp_api_link": whatsapp_api_link,
         "police_redirect_url": police_url
     }
+
+    # Attempt physical Fast2SMS dispatch, Twilio, and Formspree Email notification
+    send_real_fast2sms(user_phone, sms_text)
+    send_real_twilio_whatsapp_and_sms(user_phone, whatsapp_text)
+    formspree_sent = send_formspree_email_notification(emergency_data)
+    emergency_data["formspree_sent"] = formspree_sent
+
     active_emergencies.append(emergency_data)
 
     asyncio.create_task(manager.broadcast({

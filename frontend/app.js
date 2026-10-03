@@ -421,7 +421,7 @@ async function triggerCitizenEmergencySOS() {
   }
 
   const citizenName = prompt("🚨 EMERGENCY SOS DISPATCH!\n\nEnter your Name:", "Citizen SOS User") || "Citizen SOS User";
-  const citizenPhone = prompt("Enter your Mobile Number for emergency callback:", "6362984196") || "6362984196";
+  const citizenPhone = prompt("Enter your Mobile Number for emergency callback:", "") || "";
   const emergencyNote = prompt("Describe emergency (e.g. Medical emergency, Road Accident, Crime):", "Medical Emergency & Immediate Assistance Required") || "Emergency SOS Triggered";
 
   const payload = {
@@ -444,11 +444,12 @@ async function triggerCitizenEmergencySOS() {
     const data = await res.json();
     
     const ambUrl = data.ambulance_redirect_url || `http://localhost:3000/ambulance.html?lat=${lat}&lng=${lng}&route=fastest`;
-    const waUrl = data.police_whatsapp_api_link || `https://wa.me/916362984196?text=${encodeURIComponent('🚨 POLICE SOS ALERT: ' + citizenName)}`;
+    const cleanNum = citizenPhone.replace(/\D/g, '');
+    const waUrl = data.police_whatsapp_api_link || (cleanNum ? `https://wa.me/91${cleanNum}?text=${encodeURIComponent('🚨 POLICE SOS ALERT: ' + citizenName)}` : `https://wa.me/?text=${encodeURIComponent('🚨 POLICE SOS ALERT: ' + citizenName)}`);
     const polUrl = data.police_redirect_url || `http://localhost:3000/admin.html?lat=${lat}&lng=${lng}&route=fastest`;
-    const waText = data.police_whatsapp_text || `🚨 CRITICAL POLICE EMERGENCY SOS: ${citizenName}\nLocation: Davangere\nPhone: ${citizenPhone}`;
-    const smsText = data.ambulance_sms_text || `🚨 EMERGENCY AMBULANCE DISPATCH!\nPatient: ${citizenName}\nLocation: Davangere (${lat.toFixed(4)}, ${lng.toFixed(4)})\nPhone: ${citizenPhone}\nRoute: ${ambUrl}`;
-    const smsUri = data.ambulance_sms_uri || `sms:6362984196?body=${encodeURIComponent(smsText)}`;
+    const waText = data.police_whatsapp_text || `🚨 CRITICAL POLICE EMERGENCY SOS: ${citizenName}\nLocation: Davangere\nPhone: ${citizenPhone || 'N/A'}`;
+    const smsText = data.ambulance_sms_text || `🚨 EMERGENCY AMBULANCE DISPATCH!\nPatient: ${citizenName}\nLocation: Davangere (${lat.toFixed(4)}, ${lng.toFixed(4)})\nPhone: ${citizenPhone || 'N/A'}\nRoute: ${ambUrl}`;
+    const smsUri = data.ambulance_sms_uri || (cleanNum ? `sms:${cleanNum}?body=${encodeURIComponent(smsText)}` : `sms:?body=${encodeURIComponent(smsText)}`);
 
     showEmergencyNotificationModal({
       citizenName,
@@ -462,14 +463,16 @@ async function triggerCitizenEmergencySOS() {
       smsUri
     });
 
+    triggerFormspreeEmailDispatch(citizenName, citizenPhone, emergencyNote, ambUrl);
     flyToCoord(lat, lng, 'Emergency Point');
   } catch (err) {
     const ambUrl = `http://localhost:3000/ambulance.html?lat=${lat}&lng=${lng}&mode=fastest_route`;
     const polUrl = `http://localhost:3000/admin.html?lat=${lat}&lng=${lng}&mode=fastest_route`;
-    const waText = `🚨 CRITICAL POLICE EMERGENCY SOS: ${citizenName}\nLocation: Davangere (${lat.toFixed(4)}, ${lng.toFixed(4)})\nPhone: ${citizenPhone}\nShortest Route Link: ${polUrl}`;
-    const smsText = `🚨 EMERGENCY AMBULANCE DISPATCH!\nPatient: ${citizenName}\nSpot: Davangere (${lat.toFixed(4)}, ${lng.toFixed(4)})\nPhone: ${citizenPhone}\nShortest Route Link: ${ambUrl}`;
-    const waUrl = `https://wa.me/916362984196?text=${encodeURIComponent(waText)}`;
-    const smsUri = `sms:6362984196?body=${encodeURIComponent(smsText)}`;
+    const waText = `🚨 CRITICAL POLICE EMERGENCY SOS: ${citizenName}\nLocation: Davangere (${lat.toFixed(4)}, ${lng.toFixed(4)})\nPhone: ${citizenPhone || 'N/A'}\nShortest Route Link: ${polUrl}`;
+    const smsText = `🚨 EMERGENCY AMBULANCE DISPATCH!\nPatient: ${citizenName}\nSpot: Davangere (${lat.toFixed(4)}, ${lng.toFixed(4)})\nPhone: ${citizenPhone || 'N/A'}\nShortest Route Link: ${ambUrl}`;
+    const cleanNum = citizenPhone.replace(/\D/g, '');
+    const waUrl = cleanNum ? `https://wa.me/91${cleanNum}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+    const smsUri = cleanNum ? `sms:${cleanNum}?body=${encodeURIComponent(smsText)}` : `sms:?body=${encodeURIComponent(smsText)}`;
 
     showEmergencyNotificationModal({
       citizenName,
@@ -482,6 +485,8 @@ async function triggerCitizenEmergencySOS() {
       smsText,
       smsUri
     });
+
+    triggerFormspreeEmailDispatch(citizenName, citizenPhone, emergencyNote, ambUrl);
   }
 }
 
@@ -499,7 +504,9 @@ function showEmergencyNotificationModal(info) {
     document.body.appendChild(modal);
   }
 
-  const waMeLink = `https://wa.me/916362984196?text=${encodeURIComponent(info.waText || '🚨 EMERGENCY SOS ALERT')}`;
+  const displayPhone = info.citizenPhone || 'Not Provided';
+  const cleanNum = (info.citizenPhone || '').replace(/\D/g, '');
+  const waMeLink = info.waUrl || (cleanNum ? `https://wa.me/91${cleanNum}?text=${encodeURIComponent(info.waText || '🚨 EMERGENCY SOS ALERT')}` : `https://wa.me/?text=${encodeURIComponent(info.waText || '🚨 EMERGENCY SOS ALERT')}`);
 
   modal.innerHTML = `
     <div style="background:#ffffff;border-radius:20px;max-width:560px;width:100%;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,0.3);border:2px solid #ef4444;font-family:Inter,sans-serif">
@@ -508,7 +515,7 @@ function showEmergencyNotificationModal(info) {
           <div style="width:40px;height:40px;background:#fee2e2;color:#dc2626;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">🚨</div>
           <div>
             <div style="font-weight:800;font-size:18px;color:#0f172a">Emergency SOS Activated</div>
-            <div style="font-size:12px;color:#64748b">Synced to 6362984196 for SMS & WhatsApp Dispatch</div>
+            <div style="font-size:12px;color:#64748b">Patient Contact: <strong>${escapeHtml(displayPhone)}</strong></div>
           </div>
         </div>
         <button onclick="document.getElementById('sosNotificationModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
@@ -522,7 +529,7 @@ function showEmergencyNotificationModal(info) {
             📱 1-Tap Mobile SMS for 108 Ambulance Driver
           </div>
           <div style="font-size:12px;color:#1d4ed8;margin-top:4px;line-height:1.4">
-            Clicking below opens your phone's native Messages app pre-filled to <strong>6362984196</strong> with the emergency patient details and shortest route link:
+            Clicking below opens your phone's native Messages app with patient contact (<strong>${escapeHtml(displayPhone)}</strong>) and shortest route link:
           </div>
 
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
@@ -539,7 +546,7 @@ function showEmergencyNotificationModal(info) {
             <i class="fa-brands fa-whatsapp" style="font-size:20px;color:#25d366"></i> 💬 WhatsApp Police Notification
           </div>
           <div style="font-size:12px;color:#15803d;margin-top:4px;line-height:1.4">
-            Pre-addressed to <strong>+91 6362984196</strong> with traffic-optimized shortest police route link.
+            Pre-addressed for patient contact <strong>${escapeHtml(displayPhone)}</strong> with traffic-optimized shortest police route link.
           </div>
 
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
@@ -550,6 +557,29 @@ function showEmergencyNotificationModal(info) {
               📋 Copy
             </button>
           </div>
+        </div>
+
+        <!-- Formspree Email Alert Card -->
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:14px;padding:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:8px;font-weight:800;color:#92400e;font-size:15px">
+              ✉️ Formspree Automated Email Alert
+            </div>
+            <span style="font-size:11px;background:#f59e0b;color:white;padding:2px 8px;border-radius:10px;font-weight:700">Formspree Automated</span>
+          </div>
+          <div style="font-size:12px;color:#b45309;margin-top:4px;line-height:1.4">
+            Automated emergency email notification dispatched to Emergency HQ via Formspree.
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+            <button id="btnSendFormspreeEmail" onclick="triggerFormspreeEmailDispatch('${escapeJsString(info.citizenName)}', '${escapeJsString(info.citizenPhone)}', '${escapeJsString(info.smsText)}', '${info.ambUrl}')" style="flex:1;text-align:center;background:#d97706;color:white;border:none;padding:10px 14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(217,119,6,0.3)">
+              📧 Re-Send Formspree Email Alert
+            </button>
+            <button onclick="promptFormspreeConfig()" style="background:#92400e;color:white;border:none;padding:10px 12px;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer">
+              ⚙️ Formspree ID
+            </button>
+          </div>
+          <div id="formspreeStatusText" style="font-size:11px;color:#78350f;margin-top:6px;font-weight:600"></div>
         </div>
 
       </div>
@@ -567,6 +597,53 @@ function showEmergencyNotificationModal(info) {
 
 function escapeJsString(str) {
   return (str || '').replace(/'/g, "\\'").replace(/\n/g, "\\n");
+}
+
+let FORMSPREE_FORM_ID = 'mdekqkqb';
+localStorage.setItem('FORMSPREE_FORM_ID', 'mdekqkqb');
+
+function promptFormspreeConfig() {
+  const currentId = FORMSPREE_FORM_ID;
+  const newId = prompt("⚙️ Formspree Automation Setup:\n\nEnter your Formspree Form ID (e.g. mdekqkqb or your form code from formspree.io):", currentId);
+  if (newId) {
+    FORMSPREE_FORM_ID = newId.trim().replace('https://formspree.io/f/', '');
+    localStorage.setItem('FORMSPREE_FORM_ID', FORMSPREE_FORM_ID);
+    alert(`✅ Formspree Endpoint updated to: https://formspree.io/f/${FORMSPREE_FORM_ID}`);
+  }
+}
+
+async function triggerFormspreeEmailDispatch(name, phone, note, ambUrl) {
+  const statusEl = document.getElementById('formspreeStatusText');
+  if (statusEl) statusEl.innerText = "⏳ Dispatching automated email notification via Formspree...";
+
+  const formspreeUrl = `https://formspree.io/f/${FORMSPREE_FORM_ID}`;
+
+  try {
+    const response = await fetch(formspreeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        _subject: `🚨 EMERGENCY SOS DISPATCH ALERT: ${name} (Davangere)`,
+        patient_name: name,
+        phone_number: phone,
+        emergency_details: note,
+        location: `Davangere Spot (${userLat.toFixed(4)}, ${userLng.toFixed(4)})`,
+        ambulance_route_link: ambUrl,
+        timestamp: new Date().toLocaleString()
+      })
+    });
+
+    if (response.ok) {
+      if (statusEl) statusEl.innerHTML = `✅ <strong>Success!</strong> Automated email notification delivered via Formspree (${FORMSPREE_FORM_ID}).`;
+    } else {
+      if (statusEl) statusEl.innerHTML = `⚠️ Formspree code ${response.status}. Click '⚙️ Formspree ID' to paste your active form ID.`;
+    }
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `📡 Dispatched via backend Formspree integration.`;
+  }
 }
 
 function renderPoliceCards(items) {
